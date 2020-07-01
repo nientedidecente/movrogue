@@ -34,6 +34,7 @@ typedef struct {
 
 Map current_map;
 Position player_pos;
+Position old_player_pos;
 
 /* Look-up tables and similar */
 
@@ -103,11 +104,15 @@ void print_map() {
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
+}
+
+void update_map() {
+	print_to_coordinates(old_player_pos.x, old_player_pos.y, symbol_lut[map_at(current_map, old_player_pos)]);
 	print_to_coordinates(player_pos.x, player_pos.y, PLAYER_CHAR);
 }
 
 #define move(input_ch) do {\
-	Position old_player_pos = player_pos;\
+	old_player_pos = player_pos;\
 	switch((input_ch)) {\
 	case 'w': player_pos.y--; break;\
 	case 's': player_pos.y++; break;\
@@ -138,10 +143,11 @@ int main() {
 	player_pos.x = 5;
 	player_pos.y = 5;
 	gen_map();
+	print_map();
 
 	/* Game loop */
 	do {
-		print_map();
+		update_map();
 		input = getchar();
 		move(input);
 	} while(input != 'X'); /* Stop when 'X' is entered, TO BE REMOVED */
