@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 /* Helper macros */
-#define REP10(X) X,X,X,X,X,X,X,X,X,X
 
 /* Consts/enums */
 
