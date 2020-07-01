@@ -3,6 +3,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+/* Helper macros */
+#define REP10(X) X,X,X,X,X,X,X,X,X,X
 
 /* Consts/enums */
 
@@ -33,16 +35,16 @@ typedef struct {
 Map current_map;
 Position player_pos;
 
-char symbol_lut[] = {
+/* Look-up tables and similar */
+
+const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
 	FLOOR_CHAR,
 	CORRIDOR_CHAR
 };
 
-/* Functions */
-
 /* NOTE: this function will disappear as soon as we start to generate a map */
-char state_lut(char c) {
+char state_lut(const char c) {
 	switch(c) {
 	case NOT_WALKABLE_CHAR: return NOT_WALKABLE;
 	case        FLOOR_CHAR: return FLOOR;
@@ -50,6 +52,8 @@ char state_lut(char c) {
 	               default: return NOT_WALKABLE; /* Should never happen */
 	}
 }
+
+/* Functions and macro-as-functions */
 
 void gen_map() {
 	int i;
@@ -89,6 +93,8 @@ void gen_map() {
     printf("\033[" LAST_LINE_STR ";1H"); \
     fflush(stdout); \
 } while(0)
+#define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
+
 
 void print_map() {
 	int i = 0;
@@ -100,7 +106,25 @@ void print_map() {
 	print_to_coordinates(player_pos.x, player_pos.y, PLAYER_CHAR);
 }
 
+#define move(input_ch) do {\
+	Position old_player_pos = player_pos;\
+	switch((input_ch)) {\
+	case 'w': player_pos.y--; break;\
+	case 's': player_pos.y++; break;\
+	case 'a': player_pos.x--; break;\
+	case 'd': player_pos.x++; break;\
+	}\
+	if(NOT_WALKABLE == map_at(current_map, player_pos)\
+	|| player_pos.x < 0\
+	|| player_pos.y < 0\
+	|| player_pos.x > WIDTH\
+	|| player_pos.y > HEIGHT) {\
+		player_pos = old_player_pos;\
+	}\
+} while(0)
+
 int main() {
+	char input;
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
@@ -118,7 +142,9 @@ int main() {
 	/* Game loop */
 	do {
 		print_map();
-	} while(getchar() != 'X'); /* Stop when 'X' is entered, TO BE REMOVED */
+		input = getchar();
+		move(input);
+	} while(input != 'X'); /* Stop when 'X' is entered, TO BE REMOVED */
 	
 	/* Restore old attributes */
 	tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
