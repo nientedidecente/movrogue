@@ -20,9 +20,15 @@
 #define FLOOR_CHAR '.'
 #define CORRIDOR_CHAR '/'
 #define PLAYER_CHAR 'P'
+#define AMULET_CHAR '*'
+
+#define STATE_PLAY 0
+#define STATE_WIN 1
+#define STATE_LOSS 1
 
 /* Typedefs/structs */
 
+typedef char STATE;
 typedef char Map[MAP_SIZE];
 typedef struct {
 	char x;
@@ -34,8 +40,16 @@ typedef struct {
 Map current_map;
 Position player_pos;
 Position old_player_pos;
+Position amulet_pos;
+STATE game_state = STATE_PLAY;
 
 /* Look-up tables and similar */
+
+const char game_over_string[][32] = {
+	"", /* STATE_PLAY: Unused */
+	"You have got the amulet!", /* STATE_WIN */
+	"You died!", /* STATE_LOSS */
+};
 
 const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
@@ -88,8 +102,8 @@ void gen_map() {
 }
 
 #define clear() printf("\033[H\033[J")
-#define print_to_coordinates(x, y, c) do { \
-    printf("\033[%d;%dH%c", y+1, x+1, c); \
+#define print_to_coordinates(pos, c) do { \
+    printf("\033[%d;%dH%c", (pos).y+1, (pos).x+1, c); \
     printf("\033[" LAST_LINE_STR ";1H"); \
     fflush(stdout); \
 } while(0)
@@ -106,8 +120,9 @@ void print_map() {
 }
 
 void update_map() {
-	print_to_coordinates(old_player_pos.x, old_player_pos.y, symbol_lut[map_at(current_map, old_player_pos)]);
-	print_to_coordinates(player_pos.x, player_pos.y, PLAYER_CHAR);
+	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
+	print_to_coordinates(amulet_pos, AMULET_CHAR);
+	print_to_coordinates(player_pos, PLAYER_CHAR);
 }
 
 #define move(input_ch) do {\
@@ -127,6 +142,8 @@ void update_map() {
 	}\
 } while(0)
 
+#define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
+
 int main() {
 	char input;
 	/* Terminal stuff*/
@@ -141,15 +158,20 @@ int main() {
 	/* Game preamble */
 	player_pos.x = 5;
 	player_pos.y = 5;
+	amulet_pos.x = 72;
+	amulet_pos.y = 18;
 	gen_map();
 	print_map();
+	update_map();
 
 	/* Game loop */
-	do {
-		update_map();
+	while(game_state == STATE_PLAY) {
 		input = getchar();
 		move(input);
-	} while(input != 'X'); /* Stop when 'X' is entered, TO BE REMOVED */
+		update_map();
+		game_state = same_pos(player_pos, amulet_pos) ? STATE_WIN : STATE_PLAY;
+	}
+	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
 	
 	/* Restore old attributes */
 	tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
