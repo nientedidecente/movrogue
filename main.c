@@ -44,7 +44,7 @@ typedef struct {
 Map current_map;
 Position player_pos;
 Position old_player_pos;
-Position amulet_pos;
+Position amulet_pos[LEVELS + 1];
 Position stairs_pos[LEVELS + 1];
 STATE game_state = STATE_PLAY;
 
@@ -126,9 +126,10 @@ void print_map() {
 	}
 }
 
-void update_map(int level) {
+void update_map(int level, int has_amulet) {
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
-	print_to_coordinates(amulet_pos, AMULET_CHAR);
+	print_to_coordinates(amulet_pos[LEVELS - 1], map_at(current_map, amulet_pos[LEVELS - 1]));
+	print_to_coordinates(amulet_pos[level], AMULET_CHAR & ~has_amulet);
 	print_to_coordinates(stairs_pos[level - 2], symbol_lut[map_at(current_map, stairs_pos[level - 2])]);
 	print_to_coordinates(stairs_pos[level + 1], symbol_lut[map_at(current_map, stairs_pos[level + 1])]);
 	print_to_coordinates(stairs_pos[level - 1], STAIRS_UP_CHAR);
@@ -172,6 +173,8 @@ int main() {
 	static struct termios oldt, newt;
 	/* Current level */
 	int level;
+	int i;
+	int has_amulet;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
 	tcgetattr(STDIN_FILENO, &oldt);
 	newt = oldt;
@@ -182,29 +185,38 @@ int main() {
 	/* Game preamble */
 	player_pos.x = 5;
 	player_pos.y = 5;
-	amulet_pos.x = 72;
-	amulet_pos.y = 18;
-	stairs_pos[0].x = 61;
-	stairs_pos[0].y = 10;
+	/* Highest level has no stairs up */
+	stairs_pos[0].x = -1;
+	stairs_pos[0].y = -1;
 	stairs_pos[1].x = 62;
 	stairs_pos[1].y = 11;
 	stairs_pos[2].x = 72;
 	stairs_pos[2].y = 15;
-	// Lowest level has no stairs down
+	/* Lowest level has no stairs down */
 	stairs_pos[3].x = -1;
 	stairs_pos[3].y = -1;
-	level = LEVELS - 1;
+	/* Ah, the things you do not to use ifs */
+	for (i = 1; i < LEVELS; i++) {
+		amulet_pos[i].x = -1;
+		amulet_pos[i].y = -1;
+	}
+	amulet_pos[LEVELS - 1].x = 72;
+	amulet_pos[LEVELS - 1].y = 18;
+	level = 1;
 	gen_map();
 	print_map();
-	update_map(level);
+	has_amulet = 0;
+	update_map(level, has_amulet);
 
 	/* Game loop */
 	while(game_state == STATE_PLAY) {
 		input = getchar();
 		move(input);
-		update_map(level);
-		game_state = same_pos(player_pos, amulet_pos) ? STATE_WIN : STATE_PLAY;
+		update_map(level, has_amulet);
+		has_amulet = same_pos(player_pos, amulet_pos[level]) ? ~0 : has_amulet;
+		game_state = (level == 1 && has_amulet) ? STATE_WIN : game_state;
 		printf("\nLevel -%03d\n", level);
+		puts(has_amulet ? "You have the amulet!" : "Find the amulet!");
 	}
 	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
 	
