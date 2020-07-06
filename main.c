@@ -19,6 +19,8 @@
 #define NOT_WALKABLE_CHAR '-'
 #define FLOOR_CHAR '.'
 #define CORRIDOR_CHAR '/'
+#define STAIRS_UP_CHAR '>'
+#define STAIRS_DOWN_CHAR '<'
 #define PLAYER_CHAR 'P'
 #define AMULET_CHAR '*'
 
@@ -35,12 +37,15 @@ typedef struct {
 	char y;
 } Position;
 
+#define LEVELS 4
+
 /* Globals */
 
 Map current_map;
 Position player_pos;
 Position old_player_pos;
 Position amulet_pos;
+Position stairs_pos[LEVELS + 1];
 STATE game_state = STATE_PLAY;
 
 /* Look-up tables and similar */
@@ -54,7 +59,9 @@ const char game_over_string[][32] = {
 const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
 	FLOOR_CHAR,
-	CORRIDOR_CHAR
+	CORRIDOR_CHAR,
+	STAIRS_UP_CHAR,
+	STAIRS_DOWN_CHAR
 };
 
 /* NOTE: this function will disappear as soon as we start to generate a map */
@@ -119,11 +126,18 @@ void print_map() {
 	}
 }
 
-void update_map() {
+void update_map(int level) {
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
 	print_to_coordinates(amulet_pos, AMULET_CHAR);
+	print_to_coordinates(stairs_pos[level - 2], symbol_lut[map_at(current_map, stairs_pos[level - 2])]);
+	print_to_coordinates(stairs_pos[level + 1], symbol_lut[map_at(current_map, stairs_pos[level + 1])]);
+	print_to_coordinates(stairs_pos[level - 1], STAIRS_UP_CHAR);
+	print_to_coordinates(stairs_pos[level], STAIRS_DOWN_CHAR);
 	print_to_coordinates(player_pos, PLAYER_CHAR);
 }
+
+#define on_stairs_up(player_pos, stairs_pos, level) player_pos.x == stairs_pos[level - 1].x && player_pos.y == stairs_pos[level - 1].y
+#define on_stairs_down(player_pos, stairs_pos, level) player_pos.x == stairs_pos[level].x && player_pos.y == stairs_pos[level].y
 
 #define move(input_ch) do {\
 	old_player_pos = player_pos;\
@@ -132,6 +146,8 @@ void update_map() {
 	case 's': player_pos.y++; break;\
 	case 'a': player_pos.x--; break;\
 	case 'd': player_pos.x++; break;\
+	case 'c': level -= on_stairs_up(player_pos, stairs_pos, level); break;\
+	case 'v': level += on_stairs_down(player_pos, stairs_pos, level); break;\
 	}\
 	if(NOT_WALKABLE == map_at(current_map, player_pos)\
 	|| player_pos.x < 0\
@@ -139,6 +155,12 @@ void update_map() {
 	|| player_pos.x > WIDTH\
 	|| player_pos.y > HEIGHT) {\
 		player_pos = old_player_pos;\
+	}\
+	if (level > LEVELS - 1) {\
+		level = LEVELS - 1;\
+	}\
+	if (level <= 0) {\
+		level = 1;\
 	}\
 } while(0)
 
@@ -148,6 +170,8 @@ int main() {
 	char input;
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
+	/* Current level */
+	int level;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
 	tcgetattr(STDIN_FILENO, &oldt);
 	newt = oldt;
@@ -160,16 +184,27 @@ int main() {
 	player_pos.y = 5;
 	amulet_pos.x = 72;
 	amulet_pos.y = 18;
+	stairs_pos[0].x = 61;
+	stairs_pos[0].y = 10;
+	stairs_pos[1].x = 62;
+	stairs_pos[1].y = 11;
+	stairs_pos[2].x = 72;
+	stairs_pos[2].y = 15;
+	// Lowest level has no stairs down
+	stairs_pos[3].x = -1;
+	stairs_pos[3].y = -1;
+	level = LEVELS - 1;
 	gen_map();
 	print_map();
-	update_map();
+	update_map(level);
 
 	/* Game loop */
 	while(game_state == STATE_PLAY) {
 		input = getchar();
 		move(input);
-		update_map();
+		update_map(level);
 		game_state = same_pos(player_pos, amulet_pos) ? STATE_WIN : STATE_PLAY;
+		printf("\nLevel -%03d\n", level);
 	}
 	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
 	
