@@ -23,10 +23,11 @@
 #define STAIRS_DOWN_CHAR '<'
 #define PLAYER_CHAR 'P'
 #define AMULET_CHAR '*'
+#define ENEMY_CHAR 'x'
 
 #define STATE_PLAY 0
 #define STATE_WIN 1
-#define STATE_LOSS 1
+#define STATE_LOSS 2
 
 /* Typedefs/structs */
 
@@ -38,6 +39,7 @@ typedef struct {
 } Position;
 
 #define LEVELS 4
+#define ENEMIES 1
 
 /* Globals */
 
@@ -45,6 +47,7 @@ Map current_map;
 Position player_pos;
 Position old_player_pos;
 Position amulet_pos[LEVELS + 1];
+Position enemies_pos[LEVELS + 1][ENEMIES];
 Position stairs_pos[LEVELS + 1];
 STATE game_state = STATE_PLAY;
 
@@ -60,8 +63,6 @@ const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
 	FLOOR_CHAR,
 	CORRIDOR_CHAR,
-	STAIRS_UP_CHAR,
-	STAIRS_DOWN_CHAR
 };
 
 /* NOTE: this function will disappear as soon as we start to generate a map */
@@ -127,7 +128,16 @@ void print_map() {
 }
 
 void update_map(int level, int has_amulet) {
+	int e;
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
+	for (e = 0; e < ENEMIES; e++) {
+		print_to_coordinates(enemies_pos[level - 1][e], symbol_lut[map_at(current_map, enemies_pos[level - 1][e])]);
+		print_to_coordinates(enemies_pos[level + 1][e], symbol_lut[map_at(current_map, enemies_pos[level + 1][e])]);
+	}
+	/* Has to be done after enemies are cleared to avoid overwriting */
+	for (e = 0; e < ENEMIES; e++) {
+		print_to_coordinates(enemies_pos[level][e], ENEMY_CHAR);
+	}
 	print_to_coordinates(amulet_pos[LEVELS - 1], map_at(current_map, amulet_pos[LEVELS - 1]));
 	print_to_coordinates(amulet_pos[level], AMULET_CHAR & ~has_amulet);
 	print_to_coordinates(stairs_pos[level - 2], symbol_lut[map_at(current_map, stairs_pos[level - 2])]);
@@ -195,6 +205,16 @@ int main() {
 	/* Lowest level has no stairs down */
 	stairs_pos[3].x = -1;
 	stairs_pos[3].y = -1;
+	/* Enemies */
+	enemies_pos[1][0].x = 59;
+	enemies_pos[1][0].y = 8;
+	enemies_pos[2][0].x = 60;
+	enemies_pos[2][0].y = 7;
+	enemies_pos[3][0].x = 61;
+	enemies_pos[3][0].y = 6;
+	enemies_pos[4][0].x = 59;
+	enemies_pos[4][0].y = 5;
+
 	/* Ah, the things you do not to use ifs */
 	for (i = 1; i < LEVELS; i++) {
 		amulet_pos[i].x = -1;
@@ -213,6 +233,9 @@ int main() {
 		input = getchar();
 		move(input);
 		update_map(level, has_amulet);
+		for (i = 0; i < ENEMIES; i++) {
+			game_state = same_pos(player_pos, enemies_pos[level][i]) ? STATE_LOSS : game_state;
+		}
 		has_amulet = same_pos(player_pos, amulet_pos[level]) ? ~0 : has_amulet;
 		game_state = (level == 1 && has_amulet) ? STATE_WIN : game_state;
 		printf("\nLevel -%03d\n", level);
