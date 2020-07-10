@@ -49,8 +49,9 @@ Position old_player_pos;
 Position amulet_pos[FLOORS + 1];
 Position enemies_pos[FLOORS + 1][ENEMIES];
 Position stairs_pos[FLOORS + 1];
-int cur_floor;
-int has_amulet;
+/* NOTE: we are limited to 255 floors */
+unsigned char cur_floor;
+char has_amulet;
 STATE game_state = STATE_PLAY;
 
 /* Look-up tables and similar */
