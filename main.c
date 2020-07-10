@@ -38,7 +38,7 @@ typedef struct {
 	char y;
 } Position;
 
-#define LEVELS 4
+#define FLOORS 4
 #define ENEMIES 1
 
 /* Globals */
@@ -46,9 +46,11 @@ typedef struct {
 Map current_map;
 Position player_pos;
 Position old_player_pos;
-Position amulet_pos[LEVELS + 1];
-Position enemies_pos[LEVELS + 1][ENEMIES];
-Position stairs_pos[LEVELS + 1];
+Position amulet_pos[FLOORS + 1];
+Position enemies_pos[FLOORS + 1][ENEMIES];
+Position stairs_pos[FLOORS + 1];
+int cur_floor;
+int has_amulet;
 STATE game_state = STATE_PLAY;
 
 /* Look-up tables and similar */
@@ -132,27 +134,27 @@ void print_map() {
 	}
 }
 
-void update_map(int level, int has_amulet) {
+void update_map() {
 	int e;
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
 	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[level - 1][e], symbol_lut[map_at(current_map, enemies_pos[level - 1][e])]);
-		print_to_coordinates(enemies_pos[level + 1][e], symbol_lut[map_at(current_map, enemies_pos[level + 1][e])]);
+		print_to_coordinates(enemies_pos[cur_floor - 1][e], symbol_lut[map_at(current_map, enemies_pos[cur_floor - 1][e])]);
+		print_to_coordinates(enemies_pos[cur_floor + 1][e], symbol_lut[map_at(current_map, enemies_pos[cur_floor + 1][e])]);
 	}
 	/* Has to be done after enemies are cleared to avoid overwriting */
 	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[level][e], ENEMY_CHAR);
+		print_to_coordinates(enemies_pos[cur_floor][e], ENEMY_CHAR);
 	}
-	print_to_coordinates(amulet_pos[level], amulet_char_lut[has_amulet]);
-	print_to_coordinates(stairs_pos[level - 2], symbol_lut[map_at(current_map, stairs_pos[level - 2])]);
-	print_to_coordinates(stairs_pos[level + 1], symbol_lut[map_at(current_map, stairs_pos[level + 1])]);
-	print_to_coordinates(stairs_pos[level - 1], STAIRS_UP_CHAR);
-	print_to_coordinates(stairs_pos[level], STAIRS_DOWN_CHAR);
+	print_to_coordinates(amulet_pos[cur_floor], amulet_char_lut[has_amulet]);
+	print_to_coordinates(stairs_pos[cur_floor - 2], symbol_lut[map_at(current_map, stairs_pos[cur_floor - 2])]);
+	print_to_coordinates(stairs_pos[cur_floor + 1], symbol_lut[map_at(current_map, stairs_pos[cur_floor + 1])]);
+	print_to_coordinates(stairs_pos[cur_floor - 1], STAIRS_UP_CHAR);
+	print_to_coordinates(stairs_pos[cur_floor], STAIRS_DOWN_CHAR);
 	print_to_coordinates(player_pos, PLAYER_CHAR);
 }
 
-#define on_stairs_up(player_pos, stairs_pos, level) player_pos.x == stairs_pos[level - 1].x && player_pos.y == stairs_pos[level - 1].y
-#define on_stairs_down(player_pos, stairs_pos, level) player_pos.x == stairs_pos[level].x && player_pos.y == stairs_pos[level].y
+#define on_stairs_up(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor - 1].x && player_pos.y == stairs_pos[floor - 1].y
+#define on_stairs_down(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor].x && player_pos.y == stairs_pos[floor].y
 
 #define move(input_ch) do {\
 	old_player_pos = player_pos;\
@@ -161,8 +163,8 @@ void update_map(int level, int has_amulet) {
 	case 's': player_pos.y++; break;\
 	case 'a': player_pos.x--; break;\
 	case 'd': player_pos.x++; break;\
-	case 'c': level -= on_stairs_up(player_pos, stairs_pos, level); break;\
-	case 'v': level += on_stairs_down(player_pos, stairs_pos, level); break;\
+	case 'c': cur_floor -= on_stairs_up(player_pos, stairs_pos, cur_floor); break;\
+	case 'v': cur_floor += on_stairs_down(player_pos, stairs_pos, cur_floor); break;\
 	}\
 	if(NOT_WALKABLE == map_at(current_map, player_pos)\
 	|| player_pos.x < 0\
@@ -171,24 +173,21 @@ void update_map(int level, int has_amulet) {
 	|| player_pos.y > HEIGHT) {\
 		player_pos = old_player_pos;\
 	}\
-	if (level > LEVELS - 1) {\
-		level = LEVELS - 1;\
+	if (cur_floor > FLOORS - 1) {\
+		cur_floor = FLOORS - 1;\
 	}\
-	if (level <= 0) {\
-		level = 1;\
+	if (cur_floor <= 0) {\
+		cur_floor = 1;\
 	}\
 } while(0)
 
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
 int main() {
+	int i;
 	char input;
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
-	/* Current level */
-	int level;
-	int i;
-	int has_amulet;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
 	tcgetattr(STDIN_FILENO, &oldt);
 	newt = oldt;
@@ -199,14 +198,14 @@ int main() {
 	/* Game preamble */
 	player_pos.x = 5;
 	player_pos.y = 5;
-	/* Highest level has no stairs up */
+	/* Highest floor has no stairs up */
 	stairs_pos[0].x = -1;
 	stairs_pos[0].y = -1;
 	stairs_pos[1].x = 62;
 	stairs_pos[1].y = 11;
 	stairs_pos[2].x = 72;
 	stairs_pos[2].y = 15;
-	/* Lowest level has no stairs down */
+	/* Lowest floor has no stairs down */
 	stairs_pos[3].x = -1;
 	stairs_pos[3].y = -1;
 	/* Enemies */
@@ -220,29 +219,29 @@ int main() {
 	enemies_pos[4][0].y = 5;
 
 	/* Ah, the things you do not to use ifs */
-	for (i = 1; i < LEVELS; i++) {
+	for (i = 1; i < FLOORS; i++) {
 		amulet_pos[i].x = -1;
 		amulet_pos[i].y = -1;
 	}
-	amulet_pos[LEVELS - 1].x = 72;
-	amulet_pos[LEVELS - 1].y = 18;
-	level = 1;
+	amulet_pos[FLOORS - 1].x = 72;
+	amulet_pos[FLOORS - 1].y = 18;
+	cur_floor = 1;
 	gen_map();
 	print_map();
 	has_amulet = 0;
-	update_map(level, has_amulet);
+	update_map();
 
 	/* Game loop */
 	while(game_state == STATE_PLAY) {
 		input = getchar();
 		move(input);
-		update_map(level, has_amulet);
+		update_map();
 		for (i = 0; i < ENEMIES; i++) {
-			game_state = same_pos(player_pos, enemies_pos[level][i]) ? STATE_LOSS : game_state;
+			game_state = same_pos(player_pos, enemies_pos[cur_floor][i]) ? STATE_LOSS : game_state;
 		}
-		has_amulet = same_pos(player_pos, amulet_pos[level]) ? 1 : has_amulet;
-		game_state = (level == 1 && has_amulet) ? STATE_WIN : game_state;
-		printf("Level -%03d\n%s\n", level, has_amulet ? "You have the amulet!" : "Find the amulet!");
+		has_amulet = same_pos(player_pos, amulet_pos[cur_floor]) ? 1 : has_amulet;
+		game_state = (cur_floor == 1 && has_amulet) ? STATE_WIN : game_state;
+		printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
 	}
 	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
 	
