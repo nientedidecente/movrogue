@@ -65,6 +65,11 @@ const char symbol_lut[] = {
 	CORRIDOR_CHAR,
 };
 
+const char amulet_char_lut[] = {
+	AMULET_CHAR,
+	FLOOR_CHAR
+};
+
 /* NOTE: this function will disappear as soon as we start to generate a map */
 char state_lut(const char c) {
 	switch(c) {
@@ -138,8 +143,7 @@ void update_map(int level, int has_amulet) {
 	for (e = 0; e < ENEMIES; e++) {
 		print_to_coordinates(enemies_pos[level][e], ENEMY_CHAR);
 	}
-	print_to_coordinates(amulet_pos[LEVELS - 1], map_at(current_map, amulet_pos[LEVELS - 1]));
-	print_to_coordinates(amulet_pos[level], AMULET_CHAR & ~has_amulet);
+	print_to_coordinates(amulet_pos[level], amulet_char_lut[has_amulet]);
 	print_to_coordinates(stairs_pos[level - 2], symbol_lut[map_at(current_map, stairs_pos[level - 2])]);
 	print_to_coordinates(stairs_pos[level + 1], symbol_lut[map_at(current_map, stairs_pos[level + 1])]);
 	print_to_coordinates(stairs_pos[level - 1], STAIRS_UP_CHAR);
@@ -236,10 +240,9 @@ int main() {
 		for (i = 0; i < ENEMIES; i++) {
 			game_state = same_pos(player_pos, enemies_pos[level][i]) ? STATE_LOSS : game_state;
 		}
-		has_amulet = same_pos(player_pos, amulet_pos[level]) ? ~0 : has_amulet;
+		has_amulet = same_pos(player_pos, amulet_pos[level]) ? 1 : has_amulet;
 		game_state = (level == 1 && has_amulet) ? STATE_WIN : game_state;
-		printf("\nLevel -%03d\n", level);
-		puts(has_amulet ? "You have the amulet!" : "Find the amulet!");
+		printf("Level -%03d\n%s\n", level, has_amulet ? "You have the amulet!" : "Find the amulet!");
 	}
 	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
 	
