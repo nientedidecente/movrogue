@@ -53,6 +53,7 @@ Position stairs_pos[FLOORS + 1];
 unsigned char cur_floor;
 char has_amulet;
 STATE game_state = STATE_PLAY;
+void (*update_map)(void);
 
 /* Look-up tables and similar */
 
@@ -93,7 +94,7 @@ char state_lut(const char c) {
 } while(0)
 #define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
 
-void gen_map() {
+void generate_new_map() {
 	int i = 0;
 	char map[MAP_SIZE] =
 		"--------------------------------------------------------------------------------"
@@ -128,7 +129,7 @@ void gen_map() {
 	}
 }
 
-void update_map() {
+void update_current_map() {
 	int e;
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
 	for (e = 0; e < ENEMIES; e++) {
@@ -211,6 +212,7 @@ void game_preamble_setting() {
 	amulet_pos[FLOORS - 1].y = 18;
 	cur_floor = 1;
 	has_amulet = 0;
+	update_map = generate_new_map;
 }
 
 int main() {
@@ -224,7 +226,10 @@ int main() {
 	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
 
 	game_preamble_setting();
-	gen_map();
+
+	update_map();
+	update_map = update_current_map;
+
 	update_map();
 
 	/* Game loop */
