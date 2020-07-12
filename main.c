@@ -85,8 +85,16 @@ char state_lut(const char c) {
 
 /* Functions and macro-as-functions */
 
+#define clear() printf("\033[H\033[J")
+#define print_to_coordinates(pos, c) do { \
+    printf("\033[%d;%dH%c", (pos).y+1, (pos).x+1, c); \
+    printf("\033[" LAST_LINE_STR ";1H"); \
+    fflush(stdout); \
+} while(0)
+#define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
+
 void gen_map() {
-	int i;
+	int i = 0;
 	char map[MAP_SIZE] =
 		"--------------------------------------------------------------------------------"
 		"--------------------------------------------------------------------------------"
@@ -112,24 +120,9 @@ void gen_map() {
 		"--------------------------------------------------------------------------------"
 		"--------------------------------------------------------------------------------"
 		"--------------------------------------------------------------------------------";
-	for (i = 0; i < MAP_SIZE; i++) {
-		current_map[i] = state_lut(map[i]);
-	}
-}
-
-#define clear() printf("\033[H\033[J")
-#define print_to_coordinates(pos, c) do { \
-    printf("\033[%d;%dH%c", (pos).y+1, (pos).x+1, c); \
-    printf("\033[" LAST_LINE_STR ";1H"); \
-    fflush(stdout); \
-} while(0)
-#define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
-
-
-void print_map() {
-	int i = 0;
 	clear();
-	while(i < MAP_SIZE) {
+	while (i < MAP_SIZE) {
+		current_map[i] = state_lut(map[i]);
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
@@ -184,18 +177,8 @@ void update_map() {
 
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
-int main() {
+void game_preamble_setting() {
 	int i;
-	char input;
-	/* Terminal stuff*/
-	static struct termios oldt, newt;
-	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
-	tcgetattr(STDIN_FILENO, &oldt);
-	newt = oldt;
-	/* Disables "wait for '\n' or EOF" mode */
-	newt.c_lflag &= ~(ICANON);
-	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
-
 	/* Game preamble */
 	player_pos.x = 5;
 	player_pos.y = 5;
@@ -227,15 +210,27 @@ int main() {
 	amulet_pos[FLOORS - 1].x = 72;
 	amulet_pos[FLOORS - 1].y = 18;
 	cur_floor = 1;
-	gen_map();
-	print_map();
 	has_amulet = 0;
+}
+
+int main() {
+	/* Terminal stuff*/
+	static struct termios oldt, newt;
+	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
+	tcgetattr(STDIN_FILENO, &oldt);
+	newt = oldt;
+	/* Disables "wait for '\n' or EOF" mode */
+	newt.c_lflag &= ~(ICANON);
+	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
+
+	game_preamble_setting();
+	gen_map();
 	update_map();
 
 	/* Game loop */
 	while(game_state == STATE_PLAY) {
-		input = getchar();
-		move(input);
+		int i;
+		move(getchar());
 		update_map();
 		for (i = 0; i < ENEMIES; i++) {
 			game_state = same_pos(player_pos, enemies_pos[cur_floor][i]) ? STATE_LOSS : game_state;
