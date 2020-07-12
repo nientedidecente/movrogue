@@ -32,6 +32,8 @@
 /* Typedefs/structs */
 
 typedef char STATE;
+typedef unsigned char Floor;
+typedef char bool;
 typedef char Map[MAP_SIZE];
 typedef struct {
 	char x;
@@ -50,8 +52,8 @@ Position amulet_pos[FLOORS + 1];
 Position enemies_pos[FLOORS + 1][ENEMIES];
 Position stairs_pos[FLOORS + 1];
 /* NOTE: we are limited to 255 floors */
-unsigned char cur_floor;
-char has_amulet;
+Floor cur_floor;
+bool has_amulet;
 STATE game_state = STATE_PLAY;
 void (*update_map)(void);
 
@@ -148,7 +150,7 @@ void generate_new_map() {
 #define on_stairs_down(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor].x && player_pos.y == stairs_pos[floor].y
 
 #define move(input_ch) do {\
-	unsigned char old_floor = cur_floor;\
+	Floor old_floor = cur_floor;\
 	old_player_pos = player_pos;\
 	switch((input_ch)) {\
 	case 'w': player_pos.y--; break;\
