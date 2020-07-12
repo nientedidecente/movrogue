@@ -94,6 +94,19 @@ char state_lut(const char c) {
 } while(0)
 #define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
 
+void update_current_map() {
+	int e;
+	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
+	/* Has to be done after enemies are cleared to avoid overwriting */
+	for (e = 0; e < ENEMIES; e++) {
+		print_to_coordinates(enemies_pos[cur_floor][e], ENEMY_CHAR);
+	}
+	print_to_coordinates(amulet_pos[cur_floor], amulet_char_lut[has_amulet]);
+	print_to_coordinates(stairs_pos[cur_floor - 1], STAIRS_UP_CHAR);
+	print_to_coordinates(stairs_pos[cur_floor], STAIRS_DOWN_CHAR);
+	print_to_coordinates(player_pos, PLAYER_CHAR);
+}
+
 void generate_new_map() {
 	int i = 0;
 	char map[MAP_SIZE] =
@@ -127,31 +140,15 @@ void generate_new_map() {
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
-}
-
-void update_current_map() {
-	int e;
-	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
-	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[cur_floor - 1][e], symbol_lut[map_at(current_map, enemies_pos[cur_floor - 1][e])]);
-		print_to_coordinates(enemies_pos[cur_floor + 1][e], symbol_lut[map_at(current_map, enemies_pos[cur_floor + 1][e])]);
-	}
-	/* Has to be done after enemies are cleared to avoid overwriting */
-	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[cur_floor][e], ENEMY_CHAR);
-	}
-	print_to_coordinates(amulet_pos[cur_floor], amulet_char_lut[has_amulet]);
-	print_to_coordinates(stairs_pos[cur_floor - 2], symbol_lut[map_at(current_map, stairs_pos[cur_floor - 2])]);
-	print_to_coordinates(stairs_pos[cur_floor + 1], symbol_lut[map_at(current_map, stairs_pos[cur_floor + 1])]);
-	print_to_coordinates(stairs_pos[cur_floor - 1], STAIRS_UP_CHAR);
-	print_to_coordinates(stairs_pos[cur_floor], STAIRS_DOWN_CHAR);
-	print_to_coordinates(player_pos, PLAYER_CHAR);
+	update_map = update_current_map;
+	update_map();
 }
 
 #define on_stairs_up(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor - 1].x && player_pos.y == stairs_pos[floor - 1].y
 #define on_stairs_down(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor].x && player_pos.y == stairs_pos[floor].y
 
 #define move(input_ch) do {\
+	unsigned char old_floor = cur_floor;\
 	old_player_pos = player_pos;\
 	switch((input_ch)) {\
 	case 'w': player_pos.y--; break;\
@@ -174,6 +171,9 @@ void update_current_map() {
 	if (cur_floor <= 0) {\
 		cur_floor = 1;\
 	}\
+	if (cur_floor != old_floor) {\
+		update_map = generate_new_map;\
+	}\
 } while(0)
 
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
@@ -184,15 +184,15 @@ void game_preamble_setting() {
 	player_pos.x = 5;
 	player_pos.y = 5;
 	/* Highest floor has no stairs up */
-	stairs_pos[0].x = -1;
-	stairs_pos[0].y = -1;
+	stairs_pos[0].x = -2;
+	stairs_pos[0].y = -2;
 	stairs_pos[1].x = 62;
 	stairs_pos[1].y = 11;
 	stairs_pos[2].x = 72;
 	stairs_pos[2].y = 15;
 	/* Lowest floor has no stairs down */
-	stairs_pos[3].x = -1;
-	stairs_pos[3].y = -1;
+	stairs_pos[3].x = -2;
+	stairs_pos[3].y = -2;
 	/* Enemies */
 	enemies_pos[1][0].x = 59;
 	enemies_pos[1][0].y = 8;
@@ -205,8 +205,8 @@ void game_preamble_setting() {
 
 	/* Ah, the things you do not to use ifs */
 	for (i = 1; i < FLOORS; i++) {
-		amulet_pos[i].x = -1;
-		amulet_pos[i].y = -1;
+		amulet_pos[i].x = -2;
+		amulet_pos[i].y = -2;
 	}
 	amulet_pos[FLOORS - 1].x = 72;
 	amulet_pos[FLOORS - 1].y = 18;
@@ -226,9 +226,6 @@ int main() {
 	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
 
 	game_preamble_setting();
-
-	update_map();
-	update_map = update_current_map;
 
 	update_map();
 
