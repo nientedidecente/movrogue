@@ -31,14 +31,13 @@
 
 /* Typedefs/structs */
 
-typedef char STATE;
 typedef unsigned char Floor;
 typedef char bool;
 typedef char Map[MAP_SIZE];
 typedef struct {
 	char x;
 	char y;
-} Position;
+} Point;
 
 #define FLOORS 4
 #define ENEMIES 1
@@ -46,11 +45,11 @@ typedef struct {
 /* Globals */
 
 Map current_map;
-Position player_pos;
-Position old_player_pos;
-Position amulet_pos[FLOORS + 1];
-Position enemies_pos[FLOORS + 1][ENEMIES];
-Position stairs_pos[FLOORS + 1];
+Point player_pos;
+Point old_player_pos;
+Point amulet_pos[FLOORS + 1];
+Point enemies_pos[FLOORS + 1][ENEMIES];
+Point stairs_pos[FLOORS + 1];
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
 Floor old_floor;
@@ -182,7 +181,7 @@ void generate_new_map() {
 #define FSM_FUN_NAME(X) fsm_state_fun_ ## X
 #define FSM_STATE_NAME(X) FSM_STATE_ ## X
 #define FSM_LOOP() do {\
-	FSM_state_t fsm_state = FSM_STATE_NAME(START);\
+	State fsm_state = FSM_STATE_NAME(START);\
 	while((fsm_state = fsm_state_table[fsm_state]()) != FSM_STATE_NAME(END));\
 } while(0)
 
@@ -191,22 +190,22 @@ typedef enum {
 	FSM_STATE_END = -1,
 	FSM_STATES()
 	FSM_STATE_CNT
-} FSM_state_t;
+} State;
 #undef FSM_STATE_MACRO
 
-#define FSM_STATE_MACRO(X) FSM_state_t FSM_FUN_NAME(X) (void);
+#define FSM_STATE_MACRO(X) State FSM_FUN_NAME(X) (void);
 FSM_STATES()
 #undef FSM_STATE_MACRO
 
 #define FSM_STATE_MACRO(X) FSM_FUN_NAME(X),
-FSM_state_t(*fsm_state_table[FSM_STATE_CNT])(void) = {
+State(*fsm_state_table[FSM_STATE_CNT])(void) = {
 	FSM_STATES()
 };
 #undef FSM_STATE_MACRO
 /********* END OF PROTECTED FSM SECTION *********/
 /************************************************/
 
-FSM_state_t FSM_FUN_NAME(START)(void) {
+State FSM_FUN_NAME(START)(void) {
 	int i;
 	/* Game preamble */
 	player_pos.x = 5;
@@ -243,13 +242,13 @@ FSM_state_t FSM_FUN_NAME(START)(void) {
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
 
-FSM_state_t FSM_FUN_NAME(NEW_FLOOR)(void) {
+State FSM_FUN_NAME(NEW_FLOOR)(void) {
 	generate_new_map();
 	printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == 1 && has_amulet) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
 }
 
-FSM_state_t FSM_FUN_NAME(ON_FLOOR)(void) {
+State FSM_FUN_NAME(ON_FLOOR)(void) {
 	int i;
 	move(getchar());
 	update_current_map();
@@ -264,22 +263,22 @@ FSM_state_t FSM_FUN_NAME(ON_FLOOR)(void) {
 	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
 }
 
-FSM_state_t FSM_FUN_NAME(BATTLE)(void) {
+State FSM_FUN_NAME(BATTLE)(void) {
 	return FSM_STATE_NAME(LOSE);
 }
 
-FSM_state_t FSM_FUN_NAME(WIN)(void) {
+State FSM_FUN_NAME(WIN)(void) {
 	puts("\033[DYou have got the amulet! - GAME OVER\n");
 	return FSM_STATE_NAME(END);
 }
 
-FSM_state_t FSM_FUN_NAME(LOSE)(void) {
+State FSM_FUN_NAME(LOSE)(void) {
 	puts("\033[DYou died! - GAME OVER\n");
 	return FSM_STATE_NAME(END);
 }
 
 int main() {
-	FSM_state_t fsm_state = FSM_STATE_NAME(START);
+	State fsm_state = FSM_STATE_NAME(START);
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
