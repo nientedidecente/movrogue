@@ -53,17 +53,10 @@ Position enemies_pos[FLOORS + 1][ENEMIES];
 Position stairs_pos[FLOORS + 1];
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
+Floor old_floor;
 bool has_amulet;
-STATE game_state = STATE_PLAY;
-void (*update_map)(void);
 
 /* Look-up tables and similar */
-
-const char game_over_string[][32] = {
-	"", /* STATE_PLAY: Unused */
-	"You have got the amulet!", /* STATE_WIN */
-	"You died!", /* STATE_LOSS */
-};
 
 const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
@@ -142,15 +135,14 @@ void generate_new_map() {
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
-	update_map = update_current_map;
-	update_map();
+	update_current_map();
 }
 
 #define on_stairs_up(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor - 1].x && player_pos.y == stairs_pos[floor - 1].y
 #define on_stairs_down(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor].x && player_pos.y == stairs_pos[floor].y
 
 #define move(input_ch) do {\
-	Floor old_floor = cur_floor;\
+	old_floor = cur_floor;\
 	old_player_pos = player_pos;\
 	switch((input_ch)) {\
 	case 'w': player_pos.y--; break;\
@@ -173,14 +165,48 @@ void generate_new_map() {
 	if (cur_floor <= 0) {\
 		cur_floor = 1;\
 	}\
-	if (cur_floor != old_floor) {\
-		update_map = generate_new_map;\
-	}\
 } while(0)
 
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
-void game_preamble_setting() {
+#define FSM_STATES() \
+	FSM_STATE_MACRO(START) \
+	FSM_STATE_MACRO(NEW_FLOOR) \
+	FSM_STATE_MACRO(ON_FLOOR) \
+	FSM_STATE_MACRO(BATTLE) \
+	FSM_STATE_MACRO(WIN) \
+	FSM_STATE_MACRO(LOSE)
+
+/************************************************/
+/***** PROTECTED FSM SECTION, DO NOT MODIFY *****/
+#define FSM_FUN_NAME(X) fsm_state_fun_ ## X
+#define FSM_STATE_NAME(X) FSM_STATE_ ## X
+#define FSM_LOOP() do {\
+	FSM_state_t fsm_state = FSM_STATE_NAME(START);\
+	while((fsm_state = fsm_state_table[fsm_state]()) != FSM_STATE_NAME(END));\
+} while(0)
+
+#define FSM_STATE_MACRO(X) FSM_STATE_NAME(X),
+typedef enum {
+	FSM_STATE_END = -1,
+	FSM_STATES()
+	FSM_STATE_CNT
+} FSM_state_t;
+#undef FSM_STATE_MACRO
+
+#define FSM_STATE_MACRO(X) FSM_state_t FSM_FUN_NAME(X) (void);
+FSM_STATES()
+#undef FSM_STATE_MACRO
+
+#define FSM_STATE_MACRO(X) FSM_FUN_NAME(X),
+FSM_state_t(*fsm_state_table[FSM_STATE_CNT])(void) = {
+	FSM_STATES()
+};
+#undef FSM_STATE_MACRO
+/********* END OF PROTECTED FSM SECTION *********/
+/************************************************/
+
+FSM_state_t FSM_FUN_NAME(START)(void) {
 	int i;
 	/* Game preamble */
 	player_pos.x = 5;
@@ -214,10 +240,46 @@ void game_preamble_setting() {
 	amulet_pos[FLOORS - 1].y = 18;
 	cur_floor = 1;
 	has_amulet = 0;
-	update_map = generate_new_map;
+	return FSM_STATE_NAME(NEW_FLOOR);
+}
+
+FSM_state_t FSM_FUN_NAME(NEW_FLOOR)(void) {
+	generate_new_map();
+	printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
+	return (cur_floor == 1 && has_amulet) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
+}
+
+FSM_state_t FSM_FUN_NAME(ON_FLOOR)(void) {
+	int i;
+	move(getchar());
+	update_current_map();
+	for (i = 0; i < ENEMIES; i++) {
+		/* XXX: can we avoid this if? */
+		if(same_pos(player_pos, enemies_pos[cur_floor][i])) {
+			return FSM_STATE_NAME(BATTLE);
+		}
+	}
+	has_amulet = same_pos(player_pos, amulet_pos[cur_floor]) ? 1 : has_amulet;
+	printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
+	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
+}
+
+FSM_state_t FSM_FUN_NAME(BATTLE)(void) {
+	return FSM_STATE_NAME(LOSE);
+}
+
+FSM_state_t FSM_FUN_NAME(WIN)(void) {
+	puts("\033[DYou have got the amulet! - GAME OVER\n");
+	return FSM_STATE_NAME(END);
+}
+
+FSM_state_t FSM_FUN_NAME(LOSE)(void) {
+	puts("\033[DYou died! - GAME OVER\n");
+	return FSM_STATE_NAME(END);
 }
 
 int main() {
+	FSM_state_t fsm_state = FSM_STATE_NAME(START);
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
@@ -227,24 +289,8 @@ int main() {
 	newt.c_lflag &= ~(ICANON);
 	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
 
-	game_preamble_setting();
+	FSM_LOOP();
 
-	update_map();
-
-	/* Game loop */
-	while(game_state == STATE_PLAY) {
-		int i;
-		move(getchar());
-		update_map();
-		for (i = 0; i < ENEMIES; i++) {
-			game_state = same_pos(player_pos, enemies_pos[cur_floor][i]) ? STATE_LOSS : game_state;
-		}
-		has_amulet = same_pos(player_pos, amulet_pos[cur_floor]) ? 1 : has_amulet;
-		game_state = (cur_floor == 1 && has_amulet) ? STATE_WIN : game_state;
-		printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
-	}
-	printf("\033[D%s - GAME OVER\n", game_over_string[game_state]);
-	
 	/* Restore old attributes */
 	tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
 	return 0;
