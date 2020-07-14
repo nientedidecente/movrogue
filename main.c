@@ -278,7 +278,6 @@ State FSM_FUN_NAME(LOSE)(void) {
 }
 
 int main() {
-	State fsm_state = FSM_STATE_NAME(START);
 	/* Terminal stuff*/
 	static struct termios oldt, newt;
 	/* Write the attributes of stdin(STDIN_FILENO) to oldt */
