@@ -39,6 +39,8 @@ typedef struct {
 } Point;
 
 #define FLOORS 8
+#define LAST_FLOOR (FLOORS - 1)
+#define AMULET_FLOOR (LAST_FLOOR / 2)
 #define ENEMIES 1
 
 /* Globals */
@@ -46,17 +48,14 @@ typedef struct {
 Map current_map;
 Point player_pos;
 Point old_player_pos;
-Point amulet_pos;
 Point enemies_pos[ENEMIES];
 Point stairs_pos;
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
 Floor old_floor;
-bool has_amulet;
 
 struct {
 	Point stairs_pos[FLOORS];
-	Point amulet_pos[FLOORS];
 	Point enemies_pos[FLOORS][ENEMIES];
 } memory;
 
@@ -66,11 +65,6 @@ const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
 	FLOOR_CHAR,
 	CORRIDOR_CHAR,
-};
-
-const char amulet_char_lut[] = {
-	AMULET_CHAR,
-	FLOOR_CHAR
 };
 
 /* NOTE: this function will disappear as soon as we start to generate a map */
@@ -100,8 +94,7 @@ void update_current_map() {
 	for (e = 0; e < ENEMIES; e++) {
 		print_to_coordinates(enemies_pos[e], ENEMY_CHAR);
 	}
-	print_to_coordinates(amulet_pos, amulet_char_lut[has_amulet]);
-	print_to_coordinates(stairs_pos, STAIRS_CHAR);
+    print_to_coordinates(stairs_pos, (cur_floor == AMULET_FLOOR) ? AMULET_CHAR : STAIRS_CHAR);
 	print_to_coordinates(player_pos, PLAYER_CHAR);
 }
 
@@ -139,7 +132,6 @@ void generate_new_map() {
 		if(i % WIDTH == 0) putchar('\n');
 	}
 	memcpy(enemies_pos, memory.enemies_pos[cur_floor], sizeof(enemies_pos) * ENEMIES);
-	amulet_pos = memory.amulet_pos[cur_floor];
 	stairs_pos = memory.stairs_pos[cur_floor];
 	player_pos.x = 5;
 	player_pos.y = 5;
@@ -243,22 +235,16 @@ State FSM_FUN_NAME(START)(void) {
 	memory.enemies_pos[6][0].x = 61;
 	memory.enemies_pos[6][0].y = 6;
 
-	/* Ah, the things you do not to use ifs */
-	for (i = 1; i < FLOORS; i++) {
-		memory.amulet_pos[i].x = -2;
-		memory.amulet_pos[i].y = -2;
-	}
-	memory.amulet_pos[(FLOORS - 1) / 2].x = 72;
-	memory.amulet_pos[(FLOORS - 1) / 2].y = 18;
+	memory.stairs_pos[AMULET_FLOOR].x = 72;
+	memory.stairs_pos[AMULET_FLOOR].y = 18;
 	cur_floor = 0;
-	has_amulet = 0;
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
 
 State FSM_FUN_NAME(NEW_FLOOR)(void) {
 	generate_new_map();
-	printf("Level -%03d\n%s\n", ((cur_floor > (FLOORS - 1) / 2) ? (FLOORS - 1) - cur_floor : cur_floor + 1), has_amulet ? "You have the amulet!" : "Find the amulet!");
-	return (cur_floor == (FLOORS - 1) && has_amulet) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
+	printf("Level -%03d\n%s\n", ((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1), (cur_floor > AMULET_FLOOR) ? "You have the amulet!" : "Find the amulet!");
+	return (cur_floor == LAST_FLOOR) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
 }
 
 State FSM_FUN_NAME(ON_FLOOR)(void) {
@@ -271,8 +257,7 @@ State FSM_FUN_NAME(ON_FLOOR)(void) {
 			return FSM_STATE_NAME(BATTLE);
 		}
 	}
-	has_amulet = same_pos(player_pos, amulet_pos) || has_amulet;
-	printf("Level -%03d\n%s\n", ((cur_floor > (FLOORS - 1) / 2) ? (FLOORS - 1) - cur_floor : cur_floor + 1), has_amulet ? "You have the amulet!" : "Find the amulet!");
+	printf("Level -%03d\n%s\n", ((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1), (cur_floor > AMULET_FLOOR) ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
 }
 
