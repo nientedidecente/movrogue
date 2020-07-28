@@ -19,8 +19,7 @@
 #define NOT_WALKABLE_CHAR '-'
 #define FLOOR_CHAR '.'
 #define CORRIDOR_CHAR '/'
-#define STAIRS_UP_CHAR '>'
-#define STAIRS_DOWN_CHAR '<'
+#define STAIRS_CHAR '%'
 #define PLAYER_CHAR 'P'
 #define AMULET_CHAR '*'
 #define ENEMY_CHAR 'x'
@@ -39,7 +38,7 @@ typedef struct {
 	char y;
 } Point;
 
-#define FLOORS 4
+#define FLOORS 8
 #define ENEMIES 1
 
 /* Globals */
@@ -47,13 +46,19 @@ typedef struct {
 Map current_map;
 Point player_pos;
 Point old_player_pos;
-Point amulet_pos[FLOORS + 1];
-Point enemies_pos[FLOORS + 1][ENEMIES];
-Point stairs_pos[FLOORS + 1];
+Point amulet_pos;
+Point enemies_pos[ENEMIES];
+Point stairs_pos;
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
 Floor old_floor;
 bool has_amulet;
+
+struct {
+	Point stairs_pos[FLOORS];
+	Point amulet_pos[FLOORS];
+	Point enemies_pos[FLOORS][ENEMIES];
+} memory;
 
 /* Look-up tables and similar */
 
@@ -93,11 +98,10 @@ void update_current_map() {
 	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
 	/* Has to be done after enemies are cleared to avoid overwriting */
 	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[cur_floor][e], ENEMY_CHAR);
+		print_to_coordinates(enemies_pos[e], ENEMY_CHAR);
 	}
-	print_to_coordinates(amulet_pos[cur_floor], amulet_char_lut[has_amulet]);
-	print_to_coordinates(stairs_pos[cur_floor - 1], STAIRS_UP_CHAR);
-	print_to_coordinates(stairs_pos[cur_floor], STAIRS_DOWN_CHAR);
+	print_to_coordinates(amulet_pos, amulet_char_lut[has_amulet]);
+	print_to_coordinates(stairs_pos, STAIRS_CHAR);
 	print_to_coordinates(player_pos, PLAYER_CHAR);
 }
 
@@ -134,11 +138,15 @@ void generate_new_map() {
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
+	memcpy(enemies_pos, memory.enemies_pos[cur_floor], sizeof(enemies_pos) * ENEMIES);
+	amulet_pos = memory.amulet_pos[cur_floor];
+	stairs_pos = memory.stairs_pos[cur_floor];
+	player_pos.x = 5;
+	player_pos.y = 5;
 	update_current_map();
 }
 
-#define on_stairs_up(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor - 1].x && player_pos.y == stairs_pos[floor - 1].y
-#define on_stairs_down(player_pos, stairs_pos, floor) player_pos.x == stairs_pos[floor].x && player_pos.y == stairs_pos[floor].y
+#define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
 #define move(input_ch) do {\
 	old_floor = cur_floor;\
@@ -148,8 +156,7 @@ void generate_new_map() {
 	case 's': player_pos.y++; break;\
 	case 'a': player_pos.x--; break;\
 	case 'd': player_pos.x++; break;\
-	case 'c': cur_floor -= on_stairs_up(player_pos, stairs_pos, cur_floor); break;\
-	case 'v': cur_floor += on_stairs_down(player_pos, stairs_pos, cur_floor); break;\
+	case 'v': cur_floor += same_pos(player_pos, stairs_pos); break;\
 	}\
 	if(NOT_WALKABLE == map_at(current_map, player_pos)\
 	|| player_pos.x < 0\
@@ -161,12 +168,10 @@ void generate_new_map() {
 	if (cur_floor > FLOORS - 1) {\
 		cur_floor = FLOORS - 1;\
 	}\
-	if (cur_floor <= 0) {\
+	if (cur_floor < 0) {\
 		cur_floor = 1;\
 	}\
 } while(0)
-
-#define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
 #define FSM_STATES() \
 	FSM_STATE_MACRO(START) \
@@ -208,44 +213,52 @@ State(*fsm_state_table[FSM_STATE_CNT])(void) = {
 State FSM_FUN_NAME(START)(void) {
 	int i;
 	/* Game preamble */
-	player_pos.x = 5;
-	player_pos.y = 5;
-	/* Highest floor has no stairs up */
-	stairs_pos[0].x = -2;
-	stairs_pos[0].y = -2;
-	stairs_pos[1].x = 62;
-	stairs_pos[1].y = 11;
-	stairs_pos[2].x = 72;
-	stairs_pos[2].y = 15;
-	/* Lowest floor has no stairs down */
-	stairs_pos[3].x = -2;
-	stairs_pos[3].y = -2;
+	memory.stairs_pos[0].x = 62;
+	memory.stairs_pos[0].y = 11;
+	memory.stairs_pos[1].x = 72;
+	memory.stairs_pos[1].y = 15;
+	memory.stairs_pos[2].x = 72;
+	memory.stairs_pos[2].y = 15;
+	memory.stairs_pos[3].x = 72;
+	memory.stairs_pos[3].y = 15;
+	memory.stairs_pos[4].x = 72;
+	memory.stairs_pos[4].y = 15;
+	memory.stairs_pos[5].x = 72;
+	memory.stairs_pos[5].y = 15;
+	memory.stairs_pos[6].x = 72;
+	memory.stairs_pos[6].y = 15;
 	/* Enemies */
-	enemies_pos[1][0].x = 59;
-	enemies_pos[1][0].y = 8;
-	enemies_pos[2][0].x = 60;
-	enemies_pos[2][0].y = 7;
-	enemies_pos[3][0].x = 61;
-	enemies_pos[3][0].y = 6;
-	enemies_pos[4][0].x = 59;
-	enemies_pos[4][0].y = 5;
+	memory.enemies_pos[0][0].x = 59;
+	memory.enemies_pos[0][0].y = 8;
+	memory.enemies_pos[1][0].x = 60;
+	memory.enemies_pos[1][0].y = 7;
+	memory.enemies_pos[2][0].x = 61;
+	memory.enemies_pos[2][0].y = 6;
+	memory.enemies_pos[3][0].x = 59;
+	memory.enemies_pos[3][0].y = 5;
+	memory.enemies_pos[4][0].x = 59;
+	memory.enemies_pos[4][0].y = 8;
+	memory.enemies_pos[5][0].x = 60;
+	memory.enemies_pos[5][0].y = 7;
+	memory.enemies_pos[6][0].x = 61;
+	memory.enemies_pos[6][0].y = 6;
 
 	/* Ah, the things you do not to use ifs */
 	for (i = 1; i < FLOORS; i++) {
-		amulet_pos[i].x = -2;
-		amulet_pos[i].y = -2;
+		memory.amulet_pos[i].x = -2;
+		memory.amulet_pos[i].y = -2;
 	}
-	amulet_pos[FLOORS - 1].x = 72;
-	amulet_pos[FLOORS - 1].y = 18;
-	cur_floor = 1;
+	memory.amulet_pos[(FLOORS - 1) / 2].x = 72;
+	memory.amulet_pos[(FLOORS - 1) / 2].y = 18;
+	cur_floor = 0;
 	has_amulet = 0;
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
 
 State FSM_FUN_NAME(NEW_FLOOR)(void) {
 	generate_new_map();
-	printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
-	return (cur_floor == 1 && has_amulet) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
+	printf("Level -%03d\n%s\n", ((cur_floor > (FLOORS - 1) / 2) ? (FLOORS - 1) - cur_floor : cur_floor + 1), has_amulet ? "You have the amulet!" : "Find the amulet!");
+	return (cur_floor == (FLOORS - 1) && has_amulet) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
 }
 
 State FSM_FUN_NAME(ON_FLOOR)(void) {
@@ -254,12 +267,12 @@ State FSM_FUN_NAME(ON_FLOOR)(void) {
 	update_current_map();
 	for (i = 0; i < ENEMIES; i++) {
 		/* XXX: can we avoid this if? */
-		if(same_pos(player_pos, enemies_pos[cur_floor][i])) {
+		if(same_pos(player_pos, enemies_pos[i])) {
 			return FSM_STATE_NAME(BATTLE);
 		}
 	}
-	has_amulet = same_pos(player_pos, amulet_pos[cur_floor]) ? 1 : has_amulet;
-	printf("Level -%03d\n%s\n", cur_floor, has_amulet ? "You have the amulet!" : "Find the amulet!");
+	has_amulet = same_pos(player_pos, amulet_pos) || has_amulet;
+	printf("Level -%03d\n%s\n", ((cur_floor > (FLOORS - 1) / 2) ? (FLOORS - 1) - cur_floor : cur_floor + 1), has_amulet ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
 }
 
