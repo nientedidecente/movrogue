@@ -38,6 +38,16 @@ typedef struct {
 	char y;
 } Point;
 
+typedef struct {
+	Point pos;
+	Point old_pos;
+	char hp;
+} LiveEntity;
+
+typedef struct {
+	Point pos;
+} StillEntity;
+
 #define FLOORS 8
 #define LAST_FLOOR (FLOORS - 1)
 #define AMULET_FLOOR (LAST_FLOOR / 2)
@@ -46,17 +56,16 @@ typedef struct {
 /* Globals */
 
 Map current_map;
-Point player_pos;
-Point old_player_pos;
-Point enemies_pos[ENEMIES];
-Point stairs_pos;
+LiveEntity player;
+LiveEntity enemies[ENEMIES];
+StillEntity stairs;
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
 Floor old_floor;
 
 struct {
-	Point stairs_pos[FLOORS];
-	Point enemies_pos[FLOORS][ENEMIES];
+	StillEntity stairs[FLOORS];
+	LiveEntity enemies[FLOORS][ENEMIES];
 } memory;
 
 /* Look-up tables and similar */
@@ -89,13 +98,13 @@ char state_lut(const char c) {
 
 void update_current_map() {
 	int e;
-	print_to_coordinates(old_player_pos, symbol_lut[map_at(current_map, old_player_pos)]);
+	print_to_coordinates(player.old_pos, symbol_lut[map_at(current_map, player.old_pos)]);
 	/* Has to be done after enemies are cleared to avoid overwriting */
 	for (e = 0; e < ENEMIES; e++) {
-		print_to_coordinates(enemies_pos[e], ENEMY_CHAR);
+		print_to_coordinates(enemies[e].pos, ENEMY_CHAR);
 	}
-    print_to_coordinates(stairs_pos, (cur_floor == AMULET_FLOOR) ? AMULET_CHAR : STAIRS_CHAR);
-	print_to_coordinates(player_pos, PLAYER_CHAR);
+    print_to_coordinates(stairs.pos, (cur_floor == AMULET_FLOOR) ? AMULET_CHAR : STAIRS_CHAR);
+	print_to_coordinates(player.pos, PLAYER_CHAR);
 }
 
 void generate_new_map() {
@@ -131,10 +140,10 @@ void generate_new_map() {
 		putchar(symbol_lut[current_map[i++]]);
 		if(i % WIDTH == 0) putchar('\n');
 	}
-	memcpy(enemies_pos, memory.enemies_pos[cur_floor], sizeof(enemies_pos) * ENEMIES);
-	stairs_pos = memory.stairs_pos[cur_floor];
-	player_pos.x = 5;
-	player_pos.y = 5;
+	memcpy(enemies, memory.enemies[cur_floor], sizeof(enemies) * ENEMIES);
+	stairs.pos = memory.stairs[cur_floor].pos;
+	player.pos.x = 5;
+	player.pos.y = 5;
 	update_current_map();
 }
 
@@ -142,20 +151,20 @@ void generate_new_map() {
 
 #define move(input_ch) do {\
 	old_floor = cur_floor;\
-	old_player_pos = player_pos;\
+	player.old_pos = player.pos;\
 	switch((input_ch)) {\
-	case 'w': player_pos.y--; break;\
-	case 's': player_pos.y++; break;\
-	case 'a': player_pos.x--; break;\
-	case 'd': player_pos.x++; break;\
-	case 'v': cur_floor += same_pos(player_pos, stairs_pos); break;\
+	case 'w': player.pos.y--; break;\
+	case 's': player.pos.y++; break;\
+	case 'a': player.pos.x--; break;\
+	case 'd': player.pos.x++; break;\
+	case 'v': cur_floor += same_pos(player.pos, stairs.pos); break;\
 	}\
-	if(NOT_WALKABLE == map_at(current_map, player_pos)\
-	|| player_pos.x < 0\
-	|| player_pos.y < 0\
-	|| player_pos.x >= WIDTH\
-	|| player_pos.y >= HEIGHT) {\
-		player_pos = old_player_pos;\
+	if(NOT_WALKABLE == map_at(current_map, player.pos)\
+	|| player.pos.x < 0\
+	|| player.pos.y < 0\
+	|| player.pos.x >= WIDTH\
+	|| player.pos.y >= HEIGHT) {\
+		player.pos = player.old_pos;\
 	}\
 } while(0)
 
@@ -199,38 +208,38 @@ State(*fsm_state_table[FSM_STATE_CNT])(void) = {
 State FSM_FUN_NAME(START)(void) {
 	int i;
 	/* Game preamble */
-	memory.stairs_pos[0].x = 62;
-	memory.stairs_pos[0].y = 11;
-	memory.stairs_pos[1].x = 72;
-	memory.stairs_pos[1].y = 15;
-	memory.stairs_pos[2].x = 72;
-	memory.stairs_pos[2].y = 15;
-	memory.stairs_pos[3].x = 72;
-	memory.stairs_pos[3].y = 15;
-	memory.stairs_pos[4].x = 72;
-	memory.stairs_pos[4].y = 15;
-	memory.stairs_pos[5].x = 72;
-	memory.stairs_pos[5].y = 15;
-	memory.stairs_pos[6].x = 72;
-	memory.stairs_pos[6].y = 15;
+	memory.stairs[0].pos.x = 62;
+	memory.stairs[0].pos.y = 11;
+	memory.stairs[1].pos.x = 72;
+	memory.stairs[1].pos.y = 15;
+	memory.stairs[2].pos.x = 72;
+	memory.stairs[2].pos.y = 15;
+	memory.stairs[3].pos.x = 72;
+	memory.stairs[3].pos.y = 15;
+	memory.stairs[4].pos.x = 72;
+	memory.stairs[4].pos.y = 15;
+	memory.stairs[5].pos.x = 72;
+	memory.stairs[5].pos.y = 15;
+	memory.stairs[6].pos.x = 72;
+	memory.stairs[6].pos.y = 15;
 	/* Enemies */
-	memory.enemies_pos[0][0].x = 59;
-	memory.enemies_pos[0][0].y = 8;
-	memory.enemies_pos[1][0].x = 60;
-	memory.enemies_pos[1][0].y = 7;
-	memory.enemies_pos[2][0].x = 61;
-	memory.enemies_pos[2][0].y = 6;
-	memory.enemies_pos[3][0].x = 59;
-	memory.enemies_pos[3][0].y = 5;
-	memory.enemies_pos[4][0].x = 59;
-	memory.enemies_pos[4][0].y = 8;
-	memory.enemies_pos[5][0].x = 60;
-	memory.enemies_pos[5][0].y = 7;
-	memory.enemies_pos[6][0].x = 61;
-	memory.enemies_pos[6][0].y = 6;
+	memory.enemies[0][0].pos.x = 59;
+	memory.enemies[0][0].pos.y = 8;
+	memory.enemies[1][0].pos.x = 60;
+	memory.enemies[1][0].pos.y = 7;
+	memory.enemies[2][0].pos.x = 61;
+	memory.enemies[2][0].pos.y = 6;
+	memory.enemies[3][0].pos.x = 59;
+	memory.enemies[3][0].pos.y = 5;
+	memory.enemies[4][0].pos.x = 59;
+	memory.enemies[4][0].pos.y = 8;
+	memory.enemies[5][0].pos.x = 60;
+	memory.enemies[5][0].pos.y = 7;
+	memory.enemies[6][0].pos.x = 61;
+	memory.enemies[6][0].pos.y = 6;
 
-	memory.stairs_pos[AMULET_FLOOR].x = 72;
-	memory.stairs_pos[AMULET_FLOOR].y = 18;
+	memory.stairs[AMULET_FLOOR].pos.x = 72;
+	memory.stairs[AMULET_FLOOR].pos.y = 18;
 	cur_floor = 0;
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
@@ -247,7 +256,7 @@ State FSM_FUN_NAME(ON_FLOOR)(void) {
 	update_current_map();
 	for (i = 0; i < ENEMIES; i++) {
 		/* XXX: can we avoid this if? */
-		if(same_pos(player_pos, enemies_pos[i])) {
+		if(same_pos(player.pos, enemies[i].pos)) {
 			return FSM_STATE_NAME(BATTLE);
 		}
 	}
