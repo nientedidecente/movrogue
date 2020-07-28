@@ -153,15 +153,9 @@ void generate_new_map() {
 	if(NOT_WALKABLE == map_at(current_map, player_pos)\
 	|| player_pos.x < 0\
 	|| player_pos.y < 0\
-	|| player_pos.x > WIDTH\
-	|| player_pos.y > HEIGHT) {\
+	|| player_pos.x >= WIDTH\
+	|| player_pos.y >= HEIGHT) {\
 		player_pos = old_player_pos;\
-	}\
-	if (cur_floor > FLOORS - 1) {\
-		cur_floor = FLOORS - 1;\
-	}\
-	if (cur_floor < 0) {\
-		cur_floor = 1;\
 	}\
 } while(0)
 
