@@ -59,6 +59,7 @@ Map current_map;
 LiveEntity player;
 LiveEntity enemies[ENEMIES];
 StillEntity stairs;
+LiveEntity *opponent;
 /* NOTE: we are limited to 255 floors */
 Floor cur_floor;
 Floor old_floor;
@@ -147,6 +148,8 @@ void generate_new_map() {
 	update_current_map();
 }
 
+#define is_alive(entity) ((entity).hp > 0)
+
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 
 #define move(input_ch) do {\
@@ -207,6 +210,7 @@ State(*fsm_state_table[FSM_STATE_CNT])(void) = {
 
 State FSM_FUN_NAME(START)(void) {
 	int i;
+
 	/* Game preamble */
 	memory.stairs[0].pos.x = 62;
 	memory.stairs[0].pos.y = 11;
@@ -225,22 +229,30 @@ State FSM_FUN_NAME(START)(void) {
 	/* Enemies */
 	memory.enemies[0][0].pos.x = 59;
 	memory.enemies[0][0].pos.y = 8;
+	memory.enemies[0][0].hp    = 2;
 	memory.enemies[1][0].pos.x = 60;
 	memory.enemies[1][0].pos.y = 7;
+	memory.enemies[1][0].hp    = 2;
 	memory.enemies[2][0].pos.x = 61;
 	memory.enemies[2][0].pos.y = 6;
+	memory.enemies[2][0].hp    = 2;
 	memory.enemies[3][0].pos.x = 59;
 	memory.enemies[3][0].pos.y = 5;
+	memory.enemies[3][0].hp    = 2;
 	memory.enemies[4][0].pos.x = 59;
 	memory.enemies[4][0].pos.y = 8;
+	memory.enemies[4][0].hp    = 2;
 	memory.enemies[5][0].pos.x = 60;
 	memory.enemies[5][0].pos.y = 7;
+	memory.enemies[5][0].hp    = 2;
 	memory.enemies[6][0].pos.x = 61;
 	memory.enemies[6][0].pos.y = 6;
+	memory.enemies[6][0].hp    = 2;
 
 	memory.stairs[AMULET_FLOOR].pos.x = 72;
 	memory.stairs[AMULET_FLOOR].pos.y = 18;
 	cur_floor = 0;
+	player.hp = 10;
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
 
@@ -253,19 +265,32 @@ State FSM_FUN_NAME(NEW_FLOOR)(void) {
 State FSM_FUN_NAME(ON_FLOOR)(void) {
 	int i;
 	move(getchar());
-	update_current_map();
 	for (i = 0; i < ENEMIES; i++) {
 		/* XXX: can we avoid this if? */
 		if(same_pos(player.pos, enemies[i].pos)) {
+			opponent = &enemies[i];
 			return FSM_STATE_NAME(BATTLE);
 		}
 	}
+	update_current_map();
 	printf("Level -%03d\n%s\n", ((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1), (cur_floor > AMULET_FLOOR) ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
 }
 
 State FSM_FUN_NAME(BATTLE)(void) {
-	return FSM_STATE_NAME(LOSE);
+	/* Player attacks opponent */
+	opponent->hp--;
+
+	/* If opponent is alive, opponent attacks player */
+	if(is_alive(*opponent)) {
+		player.hp--;
+		player.pos = player.old_pos;
+	} else {
+		opponent->pos.x = opponent->pos.y = -1;
+	}
+
+	update_current_map();
+	return is_alive(player) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(LOSE);
 }
 
 State FSM_FUN_NAME(WIN)(void) {
