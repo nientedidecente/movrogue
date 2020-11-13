@@ -41,6 +41,11 @@ typedef struct {
 typedef struct {
 	Point pos;
 	Point old_pos;
+	char max_hp; /* unused but for status bar */
+	char attack; /* unused but for status bar */
+	char level; /* unused but for status bar */
+	char xp; /* unused but for status bar */
+	char next_level_xp; /* unused but for status bar */
 	char hp;
 } LiveEntity;
 
@@ -64,6 +69,9 @@ LiveEntity *opponent;
 Floor cur_floor;
 Floor old_floor;
 
+const char * top_message;
+const char * bottom_message;
+
 struct {
 	StillEntity stairs[FLOORS];
 	LiveEntity enemies[FLOORS][ENEMIES];
@@ -71,6 +79,12 @@ struct {
 
 /* Look-up tables and similar */
 
+const char messages[][64] = {
+#define WIN_MESSAGE 0
+	"You have got the amulet! - GAME OVER",
+#define LOSE_MESSAGE 1
+	"You died! - GAME OVER"
+};
 const char symbol_lut[] = {
 	NOT_WALKABLE_CHAR,
 	FLOOR_CHAR,
@@ -106,6 +120,20 @@ void update_current_map() {
 	}
     print_to_coordinates(stairs.pos, (cur_floor == AMULET_FLOOR) ? AMULET_CHAR : STAIRS_CHAR);
 	print_to_coordinates(player.pos, PLAYER_CHAR);
+	printf(
+		"|Floor -%03d%38s| HP: %3d/%-3d  | ATK: %-3d     |\n",
+		((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1),
+		top_message,
+		player.hp, player.max_hp,
+		player.attack
+		);
+	printf("+------------------------------------------------+--------------+--------------|\n");
+	printf(
+		"|%48s| Level: %-3d   | XP: %4d/%-4d|\n",
+		bottom_message,
+		player.level,
+		player.xp, player.next_level_xp);
+	printf("+------------------------------------------------+--------------+--------------|\n");
 }
 
 void generate_new_map() {
@@ -253,12 +281,20 @@ State FSM_FUN_NAME(START)(void) {
 	memory.stairs[AMULET_FLOOR].pos.y = 18;
 	cur_floor = 0;
 	player.hp = 10;
+	player.max_hp = 10;
+	player.attack = 10;
+	player.level = 1;
+	player.xp = 1;
+	player.next_level_xp = 0;
+
+	top_message = "Find the amulet!";
+	bottom_message = "";
 	return FSM_STATE_NAME(NEW_FLOOR);
 }
 
 State FSM_FUN_NAME(NEW_FLOOR)(void) {
+	if(cur_floor > AMULET_FLOOR) top_message = "You have the amulet!";
 	generate_new_map();
-	printf("Level -%03d\n%s\n", ((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1), (cur_floor > AMULET_FLOOR) ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == LAST_FLOOR) ? FSM_STATE_NAME(WIN) : FSM_STATE_NAME(ON_FLOOR);
 }
 
@@ -273,7 +309,6 @@ State FSM_FUN_NAME(ON_FLOOR)(void) {
 		}
 	}
 	update_current_map();
-	printf("Level -%03d\n%s\n", ((cur_floor > AMULET_FLOOR) ? LAST_FLOOR - cur_floor : cur_floor + 1), (cur_floor > AMULET_FLOOR) ? "You have the amulet!" : "Find the amulet!");
 	return (cur_floor == old_floor) ? FSM_STATE_NAME(ON_FLOOR) : FSM_STATE_NAME(NEW_FLOOR);
 }
 
@@ -286,7 +321,7 @@ State FSM_FUN_NAME(BATTLE)(void) {
 		player.hp--;
 		player.pos = player.old_pos;
 	} else {
-		opponent->pos.x = opponent->pos.y = -1;
+		opponent->pos.x = opponent->pos.y = -2;
 	}
 
 	update_current_map();
@@ -294,12 +329,14 @@ State FSM_FUN_NAME(BATTLE)(void) {
 }
 
 State FSM_FUN_NAME(WIN)(void) {
-	puts("\033[DYou have got the amulet! - GAME OVER\n");
+	bottom_message = "You have got the amulet! - GAME OVER";
+	update_current_map();
 	return FSM_STATE_NAME(END);
 }
 
 State FSM_FUN_NAME(LOSE)(void) {
-	puts("\033[DYou died! - GAME OVER\n");
+	bottom_message = "You died! - GAME OVER";
+	update_current_map();
 	return FSM_STATE_NAME(END);
 }
 

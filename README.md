@@ -12,5 +12,5 @@ If you are on a 64bit OS, you need to run any executable in 32bit mode. QEMU is 
 
 ```
 apt install qemu-user-static
-qemu-i386-static ./a.out
+qemu-i386-static ./main.out
 ```
