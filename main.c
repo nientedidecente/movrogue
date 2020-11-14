@@ -1,63 +1,10 @@
 #include <stdio.h>
-#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 
-/* Helper macros */
-
-/* Consts/enums */
-
-#define WIDTH 80
-#define HEIGHT 24
-#define LAST_LINE_STR "25"
-#define MAP_SIZE (WIDTH*HEIGHT)
-
-#define NOT_WALKABLE 0x0
-#define CORRIDOR 0x1
-#define FLOOR 0x2
-
-#define NOT_WALKABLE_CHAR '-'
-#define FLOOR_CHAR '.'
-#define ROOM_CHAR '0'
-#define CORRIDOR_CHAR '/'
-#define STAIRS_CHAR '%'
-#define PLAYER_CHAR 'P'
-#define AMULET_CHAR '*'
-#define ENEMY_CHAR 'x'
-
-#define STATE_PLAY 0
-#define STATE_WIN 1
-#define STATE_LOSS 2
-
-/* Typedefs/structs */
-
-typedef unsigned char Floor;
-typedef char bool;
-typedef char Map[MAP_SIZE];
-typedef struct {
-	char x;
-	char y;
-} Point;
-
-typedef struct {
-	Point pos;
-	Point old_pos;
-	char max_hp; /* unused but for status bar */
-	char attack; /* unused but for status bar */
-	char level; /* unused but for status bar */
-	char xp; /* unused but for status bar */
-	char next_level_xp; /* unused but for status bar */
-	char hp;
-} LiveEntity;
-
-typedef struct {
-	Point pos;
-} StillEntity;
-
-#define FLOORS 8
-#define LAST_FLOOR (FLOORS - 1)
-#define AMULET_FLOOR (LAST_FLOOR / 2)
-#define ENEMIES 1
+#include "defines.h"
+#include "types.h"
+#include "luts.h"
 
 /* Globals */
 
@@ -77,40 +24,6 @@ struct {
 	StillEntity stairs[FLOORS];
 	LiveEntity enemies[FLOORS][ENEMIES];
 } memory;
-
-/* Look-up tables and similar */
-
-const char messages[][64] = {
-#define WIN_MESSAGE 0
-	"You have got the amulet! - GAME OVER",
-#define LOSE_MESSAGE 1
-	"You died! - GAME OVER"
-};
-const char symbol_lut[] = {
-	NOT_WALKABLE_CHAR,
-	CORRIDOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-	FLOOR_CHAR,
-};
-
-/* NOTE: this function will disappear as soon as we start to generate a map */
-char state_lut(const char c) {
-	switch(c) {
-	case NOT_WALKABLE_CHAR: return NOT_WALKABLE;
-	case     CORRIDOR_CHAR: return CORRIDOR;
-	default:
-		if(c < ROOM_CHAR || c > ROOM_CHAR+9) return NOT_WALKABLE;
-		else 								 return FLOOR + (c - ROOM_CHAR);
-	}
-}
 
 /* Functions and macro-as-functions */
 
@@ -340,13 +253,13 @@ State FSM_FUN_NAME(BATTLE)(void) {
 }
 
 State FSM_FUN_NAME(WIN)(void) {
-	bottom_message = "You have got the amulet! - GAME OVER";
+	bottom_message = messages[WIN_MESSAGE];
 	update_current_map();
 	return FSM_STATE_NAME(END);
 }
 
 State FSM_FUN_NAME(LOSE)(void) {
-	bottom_message = "You died! - GAME OVER";
+	bottom_message = messages[LOSE_MESSAGE];
 	update_current_map();
 	return FSM_STATE_NAME(END);
 }
