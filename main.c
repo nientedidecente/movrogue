@@ -106,6 +106,7 @@ void generate_new_map() {
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 #define same_room(pos1, pos2) (map_at(current_map, pos1) >= FLOOR && map_at(current_map, pos1) == map_at(current_map, pos2))
 #define abs(x) (((x) > 0) ? (x) : -(x))
+#define sign(x) (((x) > 0) - ((x) < 0))
 #define move_player(input_ch) do {\
 	old_floor = cur_floor;\
 	player.old_pos = player.pos;\
@@ -129,11 +130,16 @@ void generate_new_map() {
 	/* Those must be int because...movfuscator complains for no understandable reason */\
 	const int diff_x = dst.x - enemy.pos.x; \
 	const int diff_y = dst.y - enemy.pos.y; \
-	const int abs_x = abs(diff_x);\
-	const int abs_y = abs(diff_y);\
+	const int sign_x = sign(diff_x);\
+	const int sign_y = sign(diff_y);\
+	int abs[4];\
+	abs[0] = diff_x;\
+	abs[1] = diff_y;\
+	abs[2] = -diff_x;\
+	abs[3] = -diff_y;\
 	enemy.old_pos = enemy.pos;\
-	if(abs_x >= abs_y) enemy.pos.x += diff_x > 0 ? 1 : -1;\
-	else               enemy.pos.y += diff_y > 0 ? 1 : -1;\
+	if(abs[1-sign_x] >= abs[2-sign_y]) enemy.pos.x += sign_x;\
+	else               				   enemy.pos.y += sign_y;\
 	if(map_at(current_map, enemy.old_pos) != map_at(current_map, enemy.pos)\
 	|| enemy.pos.x < 0\
 	|| enemy.pos.y < 0\
@@ -181,8 +187,6 @@ State(*fsm_state_table[FSM_STATE_CNT])(void) = {
 /************************************************/
 
 State FSM_FUN_NAME(START)(void) {
-	int i;
-
 	/* Game preamble */
 	memory.stairs[0].pos.x = 62;
 	memory.stairs[0].pos.y = 11;
