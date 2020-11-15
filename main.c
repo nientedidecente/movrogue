@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <termios.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "defines.h"
 #include "types.h"
@@ -40,6 +41,7 @@ void update_current_map() {
 	print_to_coordinates(player.old_pos, symbol_lut[map_at(current_map, player.old_pos)]);
 	/* Has to be done after enemies are cleared to avoid overwriting */
 	for (e = 0; e < ENEMIES; e++) {
+		print_to_coordinates(enemies[e].old_pos, symbol_lut[map_at(current_map, enemies[e].old_pos)]);
 		print_to_coordinates(enemies[e].pos, ENEMY_CHAR);
 	}
     print_to_coordinates(stairs.pos, (cur_floor == AMULET_FLOOR) ? AMULET_CHAR : STAIRS_CHAR);
@@ -101,10 +103,10 @@ void generate_new_map() {
 }
 
 #define is_alive(entity) ((entity).hp > 0)
-
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
-
-#define move(input_ch) do {\
+#define same_room(pos1, pos2) (map_at(current_map, pos1) >= FLOOR && map_at(current_map, pos1) == map_at(current_map, pos2))
+#define abs(x) (((x) > 0) ? (x) : -(x))
+#define move_player(input_ch) do {\
 	old_floor = cur_floor;\
 	player.old_pos = player.pos;\
 	switch((input_ch)) {\
@@ -120,6 +122,24 @@ void generate_new_map() {
 	|| player.pos.x >= WIDTH\
 	|| player.pos.y >= HEIGHT) {\
 		player.pos = player.old_pos;\
+	}\
+} while(0)
+
+#define move_enemy(enemy, dst) do{\
+	/* Those must be int because...movfuscator complains for no understandable reason */\
+	const int diff_x = dst.x - enemy.pos.x; \
+	const int diff_y = dst.y - enemy.pos.y; \
+	const int abs_x = abs(diff_x);\
+	const int abs_y = abs(diff_y);\
+	enemy.old_pos = enemy.pos;\
+	if(abs_x >= abs_y) enemy.pos.x += diff_x > 0 ? 1 : -1;\
+	else               enemy.pos.y += diff_y > 0 ? 1 : -1;\
+	if(map_at(current_map, enemy.old_pos) != map_at(current_map, enemy.pos)\
+	|| enemy.pos.x < 0\
+	|| enemy.pos.y < 0\
+	|| enemy.pos.x >= WIDTH\
+	|| enemy.pos.y >= HEIGHT) {\
+		enemy.pos = enemy.old_pos;\
 	}\
 } while(0)
 
@@ -224,8 +244,12 @@ State FSM_FUN_NAME(NEW_FLOOR)(void) {
 
 State FSM_FUN_NAME(ON_FLOOR)(void) {
 	int i;
-	move(getchar());
+	move_player(getchar());
 	for (i = 0; i < ENEMIES; i++) {
+		/* XXX: can we avoid this if? */
+		if(same_room(player.pos, enemies[i].pos)) {
+			move_enemy(enemies[i], player.pos);
+		}
 		/* XXX: can we avoid this if? */
 		if(same_pos(player.pos, enemies[i].pos)) {
 			opponent = &enemies[i];

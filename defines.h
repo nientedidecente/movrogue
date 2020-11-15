@@ -8,9 +8,13 @@
 #define LAST_LINE_STR "25"
 #define MAP_SIZE (WIDTH*HEIGHT)
 
+/* Tile states */
 #define NOT_WALKABLE 0x0
 #define CORRIDOR 0x1
 #define FLOOR 0x2
+/* ROOM NUMBER = TILE_STATE - FLOOR
+    E.g. (TILE_STATE == 4) => ROOM #2
+*/
 
 #define NOT_WALKABLE_CHAR '-'
 #define FLOOR_CHAR '.'
