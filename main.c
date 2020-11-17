@@ -106,7 +106,7 @@ void generate_new_map() {
 #define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
 #define same_room(pos1, pos2) (map_at(current_map, pos1) >= FLOOR && map_at(current_map, pos1) == map_at(current_map, pos2))
 #define abs(x) (((x) > 0) ? (x) : -(x))
-#define sign(x) (((x) > 0) - ((x) < 0))
+#define sign(x) (((x) >= 0) - ((x) < 0))
 #define move_player(input_ch) do {\
 	old_floor = cur_floor;\
 	player.old_pos = player.pos;\
