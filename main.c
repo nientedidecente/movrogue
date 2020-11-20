@@ -6,6 +6,7 @@
 #include "defines.h"
 #include "types.h"
 #include "luts.h"
+#include "entity.h"
 
 /* Globals */
 
@@ -34,7 +35,6 @@ struct {
     printf("\033[" LAST_LINE_STR ";1H"); \
     fflush(stdout); \
 } while(0)
-#define map_at(map, pos) ((map)[(pos).x + WIDTH * (pos).y])
 
 void update_current_map() {
 	int e;
@@ -102,27 +102,24 @@ void generate_new_map() {
 	update_current_map();
 }
 
-#define is_alive(entity) ((entity).hp > 0)
-#define same_pos(pos1, pos2) ((pos1).x == (pos2).x && (pos1).y == (pos2).y)
-#define same_room(pos1, pos2) (map_at(current_map, pos1) >= FLOOR && map_at(current_map, pos1) == map_at(current_map, pos2))
 #define abs(x) (((x) > 0) ? (x) : -(x))
 #define sign(x) (((x) >= 0) - ((x) < 0))
-#define move_player(input_ch) do {\
+#define move_player(player, input_ch) do {\
 	old_floor = cur_floor;\
-	player.old_pos = player.pos;\
+	(player).old_pos = (player).pos;\
 	switch((input_ch)) {\
-	case 'w': player.pos.y--; break;\
-	case 's': player.pos.y++; break;\
-	case 'a': player.pos.x--; break;\
-	case 'd': player.pos.x++; break;\
-	case 'v': cur_floor += same_pos(player.pos, stairs.pos); break;\
+	case 'w': (player).pos.y--; break;\
+	case 's': (player).pos.y++; break;\
+	case 'a': (player).pos.x--; break;\
+	case 'd': (player).pos.x++; break;\
+	case 'v': cur_floor += same_pos((player), stairs); break;\
 	}\
-	if(NOT_WALKABLE == map_at(current_map, player.pos)\
-	|| player.pos.x < 0\
-	|| player.pos.y < 0\
-	|| player.pos.x >= WIDTH\
-	|| player.pos.y >= HEIGHT) {\
-		player.pos = player.old_pos;\
+	if(NOT_WALKABLE == map_at(current_map, (player).pos)\
+	|| (player).pos.x < 0\
+	|| (player).pos.y < 0\
+	|| (player).pos.x >= WIDTH\
+	|| (player).pos.y >= HEIGHT) {\
+		(player).pos = (player).old_pos;\
 	}\
 } while(0)
 
@@ -138,8 +135,11 @@ void generate_new_map() {
 	abs[2] = -diff_x;\
 	abs[3] = -diff_y;\
 	enemy.old_pos = enemy.pos;\
-	if(abs[1-sign_x] >= abs[2-sign_y]) enemy.pos.x += sign_x;\
-	else               				   enemy.pos.y += sign_y;\
+	/* An "if(>=)else" would have resulted in moving enemy when it's in the same spot\
+	 * as the player.\
+	 */\
+	if(abs[1-sign_x] > abs[2-sign_y]) enemy.pos.x += sign_x;\
+	if(abs[1-sign_x] < abs[2-sign_y]) enemy.pos.y += sign_y;\
 	if(map_at(current_map, enemy.old_pos) != map_at(current_map, enemy.pos)\
 	|| enemy.pos.x < 0\
 	|| enemy.pos.y < 0\
@@ -147,6 +147,30 @@ void generate_new_map() {
 	|| enemy.pos.y >= HEIGHT) {\
 		enemy.pos = enemy.old_pos;\
 	}\
+} while(0)
+
+/* Player next level exp is just level^3, like a Medium Fast growing 1st gen Pokèmon */
+#define next_level_xp_formula(level) ((level)*(level)*(level))
+/* Experience gain from defeating an enemy. TODO */
+#define get_exp_gain(enemy) ((enemy).level)
+#define get_attack(level) (level)
+#define get_hp(level) (level)
+/* Avoiding branches here might be useless unless we use a function pointer
+	TODO use a function pointer, this function might be really slow */
+#define update_level(entity) do {\
+	int old_max_hp = (entity).max_hp;\
+	while((entity).xp >= (entity).next_level_xp) {\
+		(entity).level++;\
+		(entity).next_level_xp = next_level_xp_formula((entity).level + 1);\
+	}\
+	(entity).max_hp = get_hp((entity).level);\
+	(entity).hp = ((entity).hp + (entity).max_hp + old_max_hp/2) / old_max_hp;\
+	(entity).attack = get_attack((entity).level);\
+} while(0)
+
+#define exp_up(enemy) do{\
+	player.xp += get_exp_gain(enemy);\
+	update_level(player);\
 } while(0)
 
 #define FSM_STATES() \
@@ -228,12 +252,9 @@ State FSM_FUN_NAME(START)(void) {
 	memory.stairs[AMULET_FLOOR].pos.x = 72;
 	memory.stairs[AMULET_FLOOR].pos.y = 18;
 	cur_floor = 0;
-	player.hp = 10;
-	player.max_hp = 10;
-	player.attack = 10;
-	player.level = 1;
-	player.xp = 1;
-	player.next_level_xp = 0;
+	player.xp = next_level_xp_formula(3);
+	player.hp = player.max_hp = 2; /* avoid division by 0 */
+	update_level(player);
 
 	top_message = "Find the amulet!";
 	bottom_message = "";
@@ -248,14 +269,14 @@ State FSM_FUN_NAME(NEW_FLOOR)(void) {
 
 State FSM_FUN_NAME(ON_FLOOR)(void) {
 	int i;
-	move_player(getchar());
+	move_player(player, getchar());
 	for (i = 0; i < ENEMIES; i++) {
 		/* XXX: can we avoid this if? */
-		if(same_room(player.pos, enemies[i].pos)) {
+		if(same_room(current_map, player, enemies[i])) {
 			move_enemy(enemies[i], player.pos);
 		}
 		/* XXX: can we avoid this if? */
-		if(same_pos(player.pos, enemies[i].pos)) {
+		if(same_pos(player, enemies[i])) {
 			opponent = &enemies[i];
 			return FSM_STATE_NAME(BATTLE);
 		}
@@ -274,6 +295,8 @@ State FSM_FUN_NAME(BATTLE)(void) {
 		player.pos = player.old_pos;
 	} else {
 		opponent->pos.x = opponent->pos.y = -2;
+		/* Update player exp and level */
+		exp_up(*opponent);
 	}
 
 	update_current_map();

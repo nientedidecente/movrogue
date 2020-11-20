@@ -7,7 +7,7 @@ all: prebuild
 	$(MOVCC) main.c -S -o main.asm
 
 cc: prebuild
-	$(CC) -std=c89 -pedantic -Wall -Wextra -Wno-char-subscripts -Wno-overlength-strings -Werror -g3 -O0 main.c -o main_cc.out
+	$(CC) -std=c89 -pedantic -Wall -Wextra -Wno-char-subscripts -Wno-overlength-strings -Werror -g -O0 main.c -o main_cc.out
 
 prebuild:
 	if [[ ! -f "$(MOVCC)" ]]; then \
